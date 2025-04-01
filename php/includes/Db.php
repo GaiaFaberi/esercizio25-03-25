@@ -16,7 +16,7 @@
         public function select($table, $where = 1){
             $query = "SELECT * FROM $table WHERE $where";
             if($results = $this->query($query)){
-                return $result->fetch_all(MYSQLI_ASSOC);
+                return $results->fetch_all(MYSQLI_ASSOC);
             }
             return [];
         }
