@@ -27,11 +27,10 @@ class AlunniController
     $body = json_decode($request->getBody()->getContents(), true);
     $nome = $body["nome"];
     $cognome = $body["cognome"];
-
     $result = $mysqli_connection->query("INSERT INTO alunni(nome, cognome) VALUES('$nome', '$cognome')");
 
     $response->getBody()->write(json_encode($result));
-    return $response->withHeader("Content-Length", "0")->withStatus(200);
+    return $response->withHeader("Content-Length", "0")->withStatus(201);
 
   }
 
@@ -51,12 +50,22 @@ class AlunniController
 
   public function destroy(Request $request, Response $response, $args){
     $mysqli_connection = new MySQLi('my_mariadb', 'root', 'ciccio', 'scuola');
-    
-
     $result = $mysqli_connection->query("DELETE FROM alunni WHERE id = " . $args['id'] . "");
 
     $response->getBody()->write(json_encode($result));
     return $response->withHeader("Content-Length", "0")->withStatus(200);
   
-}
+  }
+
+  public function search(Request $request, Response $response, $args){
+    $mysqli_connection = new MySQLi('my_mariadb', 'root', 'ciccio', 'scuola');
+    $result = $mysqli_connection->query("SELECT * FROM alunni WHERE cognome like '%" . $args['cognome'] . "%'");
+    if($result->num_rows > 0){
+      $results = $result->fetch_all(MYSQLI_ASSOC);
+      $response->getBody()->write(json_encode($results));
+      return $response->withHeader("Content-type", "application/json")->withStatus(200);
+    }
+    return $response->withHeader("Content-length", "0")->withStatus(404);
+   
+  }
 }
