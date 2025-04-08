@@ -1,0 +1,6 @@
+get/alunni/{id}/certificazioni
+get/alunni/{id}/certificazioni/{idCert}
+post/alunni/{id}/certificazioni
+put/alunni/{id}/certificazioni/{idCert}
+delete/alunni/{id}/certificazioni[/{idCert}]
+

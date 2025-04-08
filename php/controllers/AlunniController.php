@@ -13,9 +13,8 @@ class AlunniController
   }
 
   public function show(Request $request, Response $response, $args){
-    $mysqli_connection = new MySQLi('my_mariadb', 'root', 'ciccio', 'scuola');
-    $result = $mysqli_connection->query("SELECT * FROM alunni WHERE id = " . $args['id'] . "");
-    $results = $result->fetch_all(MYSQLI_ASSOC);
+    $db = Db::getInstance();
+    $results = $db->select("alunni", "id = " . $args['id'] . "");
 
      $response->getBody()->write(json_encode($results));
     return $response->withHeader("Content-type", "application/json")->withStatus(200);
@@ -34,17 +33,19 @@ class AlunniController
   }
 
   public function update(Request $request, Response $response, $args){
-    $mysqli_connection = new MySQLi('my_mariadb', 'root', 'ciccio', 'scuola');
+    $db = Db::getInstance();
     $body = json_decode($request->getBody()->getContents(), true);
     $nome = $body["nome"];
     $cognome = $body["cognome"];
+    $query = "UPDATE alunni SET nome = '$nome', cognome = '$cognome' WHERE id = " . $args['id'] . "";
 
     $result = $mysqli_connection->query("UPDATE alunni SET nome = '$nome', cognome = '$cognome' WHERE id = " . $args['id'] . "");
 
-    $response->getBody()->write(json_encode($result));
+    $result = $db->query($query);
+    $results = $result->fetch_all(MYSQLI_ASSOC);
+
+    $response->getBody()->write(json_encode($results));
     return $response->withHeader("Content-type", "application/json")->withStatus(200);
-
-
   }
 
   public function destroy(Request $request, Response $response, $args){
@@ -65,54 +66,33 @@ class AlunniController
       return $response->withHeader("Content-type", "application/json")->withStatus(200);
     }
     return $response->withHeader("Content-length", "0")->withStatus(404);
-   
   }
+
   public function sort(Request $request, Response $response, $args){
-    $mysqli_connection = new MySQLi('my_mariadb', 'root', 'ciccio', 'scuola');
-    $column = $args['column'];
-    $order = $args['order']; 
-    if($order = 'desc'){
-      $result = $mysqli_connection->query("SELECT * FROM alunni ORDER BY cognome DESC");
-      if($result->num_rows > 0){
-        $results = $result->fetch_all(MYSQLI_ASSOC);
-        $response->getBody()->write(json_encode($results));
-        return $response->withHeader("Content-type", "application/json")->withStatus(200);
+    $db = Db::getInstance();
+    $results = $db->query("describe alunni");
+
+    $found = false;
+    $columns = $results-> fetch_all(MYSQLI_ASSOC);
+    foreach ($columns as $col){
+      if($col['Field'] == $args['column']){
+        $found = true;
+        break;
       }
-    return $response->withHeader("Content-length", "0")->withStatus(404);
-    }else if($order = 'asc'){
-      $result = $mysqli_connection->query("SELECT * FROM alunni ORDER BY cognome ASC");
-      if($result->num_rows > 0){
-        $results = $result->fetch_all(MYSQLI_ASSOC);
-        $response->getBody()->write(json_encode($results));
-      return $response->withHeader("Content-type", "application/json")->withStatus(200);
-      }
-      return $response->withHeader("Content-length", "0")->withStatus(404);
     }
+
+    if(!$found){
+      $response->getBody()->write(json_encode(["msg"=> "colonna non trovata"]));
+      return $response->withHeader("Content-Type", "application/json")->withStatus(404);
+    }
+    $query = "SELECT * FROM alunni ORDER BY " . $args['column'] . " ASC";
+    $result = $db->query($query);
+    $results = $result->fetch_all(MYSQLI_ASSOC);
+
+    $response->getBody()->write(json_encode($results));
+    return $response->withHeader("Content-type", "application/json")->withStatus(200);
   }
    
+  
+
 }
-/*
-$db = Db::getInstance();
-$results = $db->query("describe alunni");
-
-$found = false;
-$columns = $results-> fetch_all(MYSQLI_ASSOC);
-foreach ($columns as $col){
-  if($col['Field'] == $args['column']){
-    $found = true;
-    break;
-  }
-}
-
-if(!$found){
-  $response->getBody()->write(json_encode(["msg"=> "colonna non trovata"]));
-  return $response->withHeader("Content-Type", "application/json")->withStatus(404);
-}
-$query = "SELECT * FROM alunni ORDER BY " . args['col'] . " ASC";
-$result = $db->query($query);
-$results = $result->fetch_all(MYSQLI_ASSOC);
-
-$response->getBody()->write(json_encode($results));
-return $response->witHeader("Content-type", "application/json")->withStatus(200);
-
- */

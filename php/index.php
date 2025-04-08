@@ -3,6 +3,7 @@ use Slim\Factory\AppFactory;
 
 require __DIR__ . '/vendor/autoload.php';
 require __DIR__ . '/controllers/AlunniController.php';
+REQUIRE __DIR__ . '/controllers/CertificazioniController.php';
 require __DIR__ . '/includes/Db.php';
 
 $app = AppFactory::create();
@@ -26,6 +27,8 @@ $app->put('/alunni/{id}', "AlunniController:update");
 //curl -X DELETE http://localhost:8080/alunni/id
 $app->delete('/alunni/{id}', "AlunniController:destroy");
 
-$app->get('/alunni/sort/{column}:{order}', "AlunniController:sort");
+$app->get('/alunni/sort/{column}', "AlunniController:sort");
+
+$app->get('/alunni/{id}/certificazioni', "CertificazioniController:")
 
 $app->run();
