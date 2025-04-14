@@ -4,3 +4,196 @@ post/alunni/{id}/certificazioni
 put/alunni/{id}/certificazioni/{idCert}
 delete/alunni/{id}/certificazioni[/{idCert}]
 
+public function sort(Request $request, Response $response, $args){
+    $db = Db::getInstance();
+    $column = $args['column'];
+    $order = $args['order'] ?? 'asc'; // default: asc (crescente)
+
+    // Controllo che l'ordine sia solo 'asc' o 'desc'
+    if (!in_array($order, ['asc', 'desc'])) {
+        $response->getBody()->write(json_encode(["msg" => "Ordine non valido. Usa solo 'asc' o 'desc'."]));
+        return $response->withHeader("Content-Type", "application/json")->withStatus(400);
+    }
+
+    // Controllo che la colonna esista
+    $results = $db->query("DESCRIBE alunni");
+    $columns = $results->fetch_all(MYSQLI_ASSOC);
+
+    $valid = false;
+    foreach ($columns as $col) {
+        if ($col['Field'] === $column) {
+            $valid = true;
+            break;
+        }
+    }
+
+    if (!$valid) {
+        $response->getBody()->write(json_encode(["msg" => "Colonna non trovata"]));
+        return $response->withHeader("Content-Type", "application/json")->withStatus(404);
+    }
+
+    //Query ordinata
+    $query = "SELECT * FROM alunni ORDER BY $column $order";
+    $result = $db->query($query);
+    $alunni = $result->fetch_all(MYSQLI_ASSOC);
+
+    $response->getBody()->write(json_encode($alunni));
+    return $response->withHeader("Content-Type", "application/json")->withStatus(200);
+}
+
+$app->get('/alunni/{id}/certificazioni', "CertificazioniController:getAll");
+$app->get('/alunni/{id}/certificazioni/{idCert}', "CertificazioniController:getOne");
+$app->post('/alunni/{id}/certificazioni', "CertificazioniController:create");
+$app->put('/alunni/{id}/certificazioni/{idCert}', "CertificazioniController:update");
+$app->delete('/alunni/{id}/certificazioni[/{idCert}]', "CertificazioniController:delete");
+
+<?php
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+class CertificazioniController {
+
+    private function alunnoExists($id) {
+        $db = Db::getInstance();
+        $result = $db->query("SELECT id FROM alunni WHERE id = $id");
+        return $result && $result->num_rows > 0;
+    }
+
+    public function getAll(Request $request, Response $response, $args) {
+        $id = $args['id'];
+        if (!$this->alunnoExists($id)) {
+            $response->getBody()->write(json_encode(["msg" => "Alunno non trovato"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(404);
+        }
+
+        $db = Db::getInstance();
+        $results = $db->select("certificazioni", "alunno_id = $id");
+        $response->getBody()->write(json_encode($results));
+        return $response->withHeader("Content-Type", "application/json")->withStatus(200);
+    }
+
+    public function getOne(Request $request, Response $response, $args) {
+        $id = $args['id'];
+        $idCert = $args['idCert'];
+
+        if (!$this->alunnoExists($id)) {
+            $response->getBody()->write(json_encode(["msg" => "Alunno non trovato"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(404);
+        }
+
+        $db = Db::getInstance();
+        $results = $db->select("certificazioni", "id = $idCert AND alunno_id = $id");
+        if (count($results) == 0) {
+            $response->getBody()->write(json_encode(["msg" => "Certificazione non trovata"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(404);
+        }
+
+        $response->getBody()->write(json_encode($results[0]));
+        return $response->withHeader("Content-Type", "application/json")->withStatus(200);
+    }
+
+    public function create(Request $request, Response $response, $args) {
+        $id = $args['id'];
+        if (!$this->alunnoExists($id)) {
+            $response->getBody()->write(json_encode(["msg" => "Alunno non trovato"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(404);
+        }
+
+        $data = json_decode($request->getBody(), true);
+
+        if (!isset($data['titolo'], $data['votazione'], $data['ente'])) {
+            $response->getBody()->write(json_encode(["msg" => "Dati mancanti"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(400);
+        }
+
+        if (!is_numeric($data['votazione']) || $data['votazione'] < 0 || $data['votazione'] > 100) {
+            $response->getBody()->write(json_encode(["msg" => "Votazione non valida (0-100)"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(400);
+        }
+
+        $db = Db::getInstance();
+        $stmt = $db->prepare("INSERT INTO certificazioni (alunno_id, titolo, votazione, ente) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("isis", $id, $data['titolo'], $data['votazione'], $data['ente']);
+        $stmt->execute();
+
+        $response->getBody()->write(json_encode(["msg" => "Certificazione creata"]));
+        return $response->withHeader("Content-Type", "application/json")->withStatus(201);
+    }
+
+    public function update(Request $request, Response $response, $args) {
+        $id = $args['id'];
+        $idCert = $args['idCert'];
+        if (!$this->alunnoExists($id)) {
+            $response->getBody()->write(json_encode(["msg" => "Alunno non trovato"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(404);
+        }
+
+        $data = json_decode($request->getBody(), true);
+
+        if (!isset($data['titolo'], $data['votazione'], $data['ente'])) {
+            $response->getBody()->write(json_encode(["msg" => "Dati mancanti"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(400);
+        }
+
+        if (!is_numeric($data['votazione']) || $data['votazione'] < 0 || $data['votazione'] > 100) {
+            $response->getBody()->write(json_encode(["msg" => "Votazione non valida (0-100)"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(400);
+        }
+
+        $db = Db::getInstance();
+        $stmt = $db->prepare("UPDATE certificazioni SET titolo = ?, votazione = ?, ente = ? WHERE id = ? AND alunno_id = ?");
+        $stmt->bind_param("sisii", $data['titolo'], $data['votazione'], $data['ente'], $idCert, $id);
+        $stmt->execute();
+
+        $response->getBody()->write(json_encode(["msg" => "Certificazione aggiornata"]));
+        return $response->withHeader("Content-Type", "application/json")->withStatus(200);
+    }
+
+    public function delete(Request $request, Response $response, $args) {
+        $id = $args['id'];
+        $idCert = $args['idCert'] ?? null;
+
+        if (!$this->alunnoExists($id)) {
+            $response->getBody()->write(json_encode(["msg" => "Alunno non trovato"]));
+            return $response->withHeader("Content-Type", "application/json")->withStatus(404);
+        }
+
+        $db = Db::getInstance();
+
+        if ($idCert) {
+            $stmt = $db->prepare("DELETE FROM certificazioni WHERE id = ? AND alunno_id = ?");
+            $stmt->bind_param("ii", $idCert, $id);
+            $stmt->execute();
+            $response->getBody()->write(json_encode(["msg" => "Certificazione eliminata"]));
+        } else {
+            $stmt = $db->prepare("DELETE FROM certificazioni WHERE alunno_id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $response->getBody()->write(json_encode(["msg" => "Tutte le certificazioni dell'alunno eliminate"]));
+        }
+
+        return $response->withHeader("Content-Type", "application/json")->withStatus(200);
+    }
+}
+
+# Tutte le certificazioni di un alunno
+curl http://localhost:8080/alunni/1/certificazioni
+
+# Una certificazione specifica
+curl http://localhost:8080/alunni/1/certificazioni/2
+
+# Creare una certificazione
+curl -X POST http://localhost:8080/alunni/1/certificazioni \
+  -H "Content-Type: application/json" \
+  -d '{"titolo":"HTML", "votazione":95, "ente":"W3Schools"}'
+
+# Modificare una certificazione
+curl -X PUT http://localhost:8080/alunni/1/certificazioni/3 \
+  -H "Content-Type: application/json" \
+  -d '{"titolo":"HTML5", "votazione":98, "ente":"freeCodeCamp"}'
+
+# Eliminare una certificazione
+curl -X DELETE http://localhost:8080/alunni/1/certificazioni/3
+
+# Eliminare tutte le certificazioni dell’alunno
+curl -X DELETE http://localhost:8080/alunni/1/certificazioni
